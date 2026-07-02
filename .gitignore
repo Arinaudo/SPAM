@@ -1,0 +1,10 @@
+# Environnements et sorties de build (spécifiques à chaque machine)
+.venv/
+build/
+dist/
+*.spec
+__pycache__/
+*.pyc
+
+# Journaux et fichiers locaux
+run_log.txt

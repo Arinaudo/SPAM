@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>SPAM — Mode d'emploi</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; color:#1a1a1a; line-height:1.5;
+         max-width:820px; margin:24px auto; padding:0 18px; }
+  h1 { color:#002060; margin-bottom:2px; }
+  .sub { color:#666; margin-top:0; }
+  h2 { color:#0563C1; border-bottom:1px solid #d9d9d9; padding-bottom:4px; margin-top:26px; }
+  .step { background:#f5f8ff; border-left:4px solid #0563C1; padding:10px 14px; margin:10px 0; border-radius:4px; }
+  .step b { color:#002060; }
+  .tip { background:#fff8e6; border-left:4px solid #e8a800; padding:10px 14px; margin:10px 0; border-radius:4px; }
+  .warn { background:#fdecec; border-left:4px solid #c0392b; padding:10px 14px; margin:10px 0; border-radius:4px; }
+  code { background:#eee; padding:1px 5px; border-radius:3px; }
+  ul { margin:6px 0 12px 20px; }
+  li { margin:3px 0; }
+</style>
+</head>
+<body>
+
+<h1>SPAM — Mode d'emploi</h1>
+<p class="sub">Système Pratique pour l'Automatisation des Mails</p>
+
+<p>SPAM sert à envoyer un même mail (personnalisé) à une liste de contacts, à partir
+d'un fichier Excel ou CSV. On travaille de gauche à droite dans les onglets numérotés :
+<b>Composer → Destinataires → File d'attente</b>.</p>
+
+<h2>0. Ouvrir l'application et se connecter</h2>
+<div class="step">
+  Lance l'application (double-clic sur <code>SPAM.exe</code> ou <code>SPAM.vbs</code>).<br>
+  Va dans l'onglet <b>Paramètres</b> → <b>Se connecter</b> : une fenêtre Microsoft s'ouvre,
+  connecte-toi avec ton compte <b>@castignac.com</b>. La connexion est mémorisée.
+</div>
+
+<h2>1. Composer le mail</h2>
+<div class="step">
+  Onglet <b>1. Composer</b> : saisis l'<b>objet</b> et le <b>texte</b> du mail.<br>
+  • « Bonjour Monsieur/Madame » et la formule de politesse s'ajoutent automatiquement.<br>
+  • Tu peux insérer des <b>images</b> et une <b>signature</b>.<br>
+  • Clique <b>Aperçu du mail</b> pour voir le rendu, et <b>Envoyer un test</b> pour te
+  l'envoyer à toi-même avant tout.
+</div>
+
+<h2>2. Importer les destinataires</h2>
+<div class="step">
+  Onglet <b>2. Destinataires</b> → <b>Importer un fichier</b> (Excel ou CSV).<br>
+  Vérifie que les colonnes sont bien associées (EMAIL obligatoire ; GENRE, PRÉNOM, NOM,
+  SOCIÉTÉ optionnels).<br>
+  Optionnel : <b>Vérifier les adresses</b> pour écarter les adresses invalides.<br>
+  Puis clique <b>Valider cette liste pour l'envoi</b> — le bouton devient vert.
+</div>
+
+<h2>3. Lancer l'envoi</h2>
+<div class="step">
+  Onglet <b>3. File d'attente</b> → <b>Créer depuis Composer + Destinataires</b>.<br>
+  Clique <b>Démarrer l'envoi</b> (vert). Une confirmation indique le nombre de mails.<br>
+  Tu peux <b>mettre en pause</b> (jaune) ou <b>arrêter</b> (rouge) à tout moment.
+</div>
+<div class="tip">
+  <b>Reprise :</b> si tu fermes l'app ou éteins le PC, rien n'est perdu — rouvre l'app,
+  resélectionne la campagne et clique de nouveau sur <b>Démarrer</b> : l'envoi reprend là
+  où il s'était arrêté.
+</div>
+
+<h2>Les autres onglets</h2>
+<ul>
+  <li><b>Tableau de bord</b> : récap d'une campagne (envoyés / erreurs) + export.</li>
+  <li><b>Historique</b> : tous les mails déjà envoyés, avec recherche et export.</li>
+  <li><b>Délivrabilité</b> : teste l'authentification du domaine, analyse ton mail
+      (score anti-spam) et règle la vitesse d'envoi.</li>
+  <li><b>Paramètres</b> : compte Outlook, signature par défaut, options d'envoi.</li>
+</ul>
+
+<h2>Conseils importants</h2>
+<div class="warn">
+  <b>Garde le PC allumé pendant l'envoi.</b> Les mails ne partent que lorsque l'application
+  est ouverte et l'ordinateur allumé. Un gros envoi peut durer plusieurs heures : l'option
+  « empêcher la mise en veille » (Paramètres) évite les interruptions.
+</div>
+<div class="tip">
+  <b>Toujours faire un « Envoyer un test »</b> avant une vraie campagne, et vérifier le
+  <b>score de l'onglet Délivrabilité</b>. Envoie plutôt en journée, en semaine, et pas des
+  dizaines de milliers de mails d'un coup sur une nouvelle liste.
+</div>
+
+<p style="color:#888; margin-top:30px;">En cas de souci, note le message affiché et le
+fichier <code>run_log.txt</code> (dans le dossier de l'app) aide au dépannage.</p>
+
+</body>
+</html>

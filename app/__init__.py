@@ -1,0 +1,1 @@
+"""CMA - Castignac Mailing App."""
