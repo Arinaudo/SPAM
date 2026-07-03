@@ -8,7 +8,8 @@ import csv
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QMessageBox, QPushButton, QScrollArea, QTableWidget, QTableWidgetItem,
+    QVBoxLayout, QWidget,
 )
 
 COLS = ["Date", "Email", "Nom", "Société", "Statut", "Campagne", "Objet", "Erreur"]
@@ -22,7 +23,15 @@ class HistoryTab(QWidget):
         self._build_ui()
 
     def _build_ui(self):
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        inner = QWidget()
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
+        root = QVBoxLayout(inner)
 
         top = QHBoxLayout()
         top.addWidget(QLabel("Rechercher :"))

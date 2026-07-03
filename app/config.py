@@ -39,7 +39,9 @@ def resource_dir() -> Path:
     Gere le cas PyInstaller (sys._MEIPASS) et le cas execution depuis les sources.
     """
     if hasattr(sys, "_MEIPASS"):
-        return Path(sys._MEIPASS) / "resources"
+        base = Path(sys._MEIPASS)
+        packaged = base / "app" / "resources"
+        return packaged if packaged.exists() else base / "resources"
     return Path(__file__).resolve().parent / "resources"
 
 

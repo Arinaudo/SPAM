@@ -13,8 +13,8 @@ from PySide6.QtGui import QImage, QTextCharFormat, QTextDocument, QTextListForma
 from PySide6.QtWidgets import (
     QCheckBox, QDialog, QFileDialog, QHBoxLayout, QInputDialog, QLabel,
     QListWidget, QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton,
-    QStackedWidget, QTextBrowser, QTextEdit, QToolBar, QVBoxLayout, QWidget,
-    QLineEdit, QGroupBox,
+    QScrollArea, QStackedWidget, QTextBrowser, QTextEdit, QToolBar,
+    QVBoxLayout, QWidget, QLineEdit, QGroupBox,
 )
 
 from ..config import ASSETS_DIR, resource_dir
@@ -44,7 +44,7 @@ class RichEditor(QTextEdit):
         super().__init__(parent)
         self.images = images_registry  # dict partage {cid: chemin}
         self.setAcceptRichText(True)
-        self.setMinimumHeight(320)
+        self.setMinimumHeight(200)
         f = QFont("Calibri", 11)
         self.setFont(f)
 
@@ -75,7 +75,16 @@ class ComposeTab(QWidget):
 
     # ------------------------------------------------------------------
     def _build_ui(self):
-        root = QVBoxLayout(self)
+        # Onglet défilable : tout reste accessible même sur petit écran (Mac).
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        inner = QWidget()
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
+        root = QVBoxLayout(inner)
 
         # Objet
         subj_row = QHBoxLayout()

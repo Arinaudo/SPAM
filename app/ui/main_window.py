@@ -24,7 +24,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_TITLE} — {APP_SUBTITLE}  (v{APP_VERSION})")
-        self.resize(1100, 740)
+        self.setMinimumSize(860, 480)
+        self.resize(1080, 680)
 
         # Etat partage
         self.settings = Settings()

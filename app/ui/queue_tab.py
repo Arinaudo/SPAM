@@ -10,7 +10,7 @@ import datetime
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox, QGroupBox, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit,
-    QProgressBar, QPushButton, QVBoxLayout, QWidget,
+    QProgressBar, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
 from ..core.sender import SendWorker
@@ -28,7 +28,15 @@ class QueueTab(QWidget):
         self.refresh_campaigns()
 
     def _build_ui(self):
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        inner = QWidget()
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
+        root = QVBoxLayout(inner)
 
         # Selection / creation de campagne
         sel_box = QGroupBox("Campagne")

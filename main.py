@@ -16,9 +16,11 @@ from app.ui.main_window import MainWindow
 
 
 def main():
-    # Windows : déclarer une identité d'app propre pour que la barre des tâches
-    # utilise NOTRE icône (sinon elle affiche celle de python.exe).
-    if sys.platform.startswith("win"):
+    # Windows : ce réglage d'identité n'est utile QUE lancé depuis python.exe
+    # (pour que la barre des tâches n'affiche pas l'icône de Python). Sur le
+    # .exe packagé, on le SAUTE : l'icône embarquée dans le .exe sert alors
+    # directement d'icône de barre des tâches (sinon Windows montre le défaut).
+    if sys.platform.startswith("win") and not getattr(sys, "frozen", False):
         try:
             import ctypes
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
