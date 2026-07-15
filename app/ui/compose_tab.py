@@ -385,7 +385,10 @@ class ComposeTab(QWidget):
             except Exception as e:
                 QMessageBox.warning(self, "Document", f"Copie impossible : {e}")
                 continue
-            self.attachments.append(str(dest))
+            # On conserve le NOM D'ORIGINE du fichier (le fichier copie porte
+            # un nom aleatoire att_xxxx pour eviter les collisions, mais le mail
+            # doit afficher le vrai nom).
+            self.attachments.append({"path": str(dest), "name": Path(path).name})
             item = QListWidgetItem(Path(path).name)
             item.setData(Qt.UserRole, str(dest))
             self.att_list.addItem(item)
@@ -396,8 +399,8 @@ class ComposeTab(QWidget):
         if not item:
             return
         path = item.data(Qt.UserRole)
-        if path in self.attachments:
-            self.attachments.remove(path)
+        self.attachments = [a for a in self.attachments
+                            if personalize.attachment_path(a) != path]
         self.att_list.takeItem(self.att_list.row(item))
         self._refresh_att_size()
 
@@ -465,13 +468,17 @@ class ComposeTab(QWidget):
             item = QListWidgetItem(f"{cid}  —  {Path(path).name}")
             item.setData(Qt.UserRole, cid)
             self.img_list.addItem(item)
-        # Documents joints
+        # Documents joints (accepte l'ancien format chaine et le nouveau
+        # format dict {path, name} qui conserve le nom d'origine).
         self.attachments = []
         self.att_list.clear()
-        for path in (attachments or []):
-            self.attachments.append(path)
-            item = QListWidgetItem(Path(path).name)
-            item.setData(Qt.UserRole, path)
+        for att in (attachments or []):
+            p = personalize.attachment_path(att)
+            n = personalize.attachment_name(att)
+            self.attachments.append(att if isinstance(att, dict)
+                                    else {"path": p, "name": n})
+            item = QListWidgetItem(n)
+            item.setData(Qt.UserRole, p)
             self.att_list.addItem(item)
         self._refresh_att_size()
         # Salutations / politesse / signature

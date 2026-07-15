@@ -120,25 +120,51 @@ def _content_type_for(path: str) -> str:
     return "image/png"
 
 
+def attachment_path(item) -> str:
+    """Chemin du fichier d'une piece jointe.
+
+    Accepte l'ancien format (chaine = chemin) et le nouveau format
+    (dict {path, name}), pour compatibilite avec les campagnes existantes.
+    """
+    if isinstance(item, dict):
+        return item.get("path", "") or ""
+    return item or ""
+
+
+def attachment_name(item) -> str:
+    """Nom AFFICHE de la piece jointe (nom d'origine du fichier).
+
+    Nouveau format : le nom d'origine stocke dans {name}. Ancien format
+    (chaine) : on retombe sur le nom du fichier copie (att_xxxx).
+    """
+    import os
+    if isinstance(item, dict):
+        return item.get("name") or os.path.basename(item.get("path", ""))
+    return os.path.basename(item or "")
+
+
 def collect_file_attachments(paths):
     """Construit la liste des pieces jointes classiques (PDF/XLSX/DOCX...).
 
-    `paths` : liste de chemins de fichiers. Retourne une liste de dicts
-    {name, content_type, b64}. Les fichiers introuvables sont ignores.
-    Ces pieces jointes sont IDENTIQUES pour tous les destinataires : a
-    construire une seule fois avant la boucle d'envoi.
+    `paths` : liste de pieces jointes, chacune etant soit un chemin (ancien
+    format), soit un dict {path, name} (nouveau format, conserve le nom
+    d'origine du fichier). Retourne une liste de dicts {name, content_type,
+    b64}. Les fichiers introuvables sont ignores. Ces pieces jointes sont
+    IDENTIQUES pour tous les destinataires : a construire une seule fois
+    avant la boucle d'envoi.
     """
     import mimetypes
     import os
 
     docs = []
-    for path in (paths or []):
+    for item in (paths or []):
+        path = attachment_path(item)
         if not path or not os.path.isfile(path):
             continue
         try:
             ctype = mimetypes.guess_type(path)[0] or "application/octet-stream"
             docs.append({
-                "name": os.path.basename(path),
+                "name": attachment_name(item),
                 "content_type": ctype,
                 "b64": file_to_b64(path),
             })
@@ -151,7 +177,8 @@ def attachments_total_bytes(paths) -> int:
     """Taille cumulee (octets) des pieces jointes existantes, pour alerter."""
     import os
     total = 0
-    for path in (paths or []):
+    for item in (paths or []):
+        path = attachment_path(item)
         try:
             if path and os.path.isfile(path):
                 total += os.path.getsize(path)
