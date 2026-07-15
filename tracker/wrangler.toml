@@ -1,0 +1,33 @@
+# ============================================================
+# Worker Cloudflare - Tracker d'ouverture (pixel invisible)
+# ============================================================
+# Deploiement : voir README_DEPLOIEMENT.md
+#
+# name      : nom du Worker sur Cloudflare
+# main      : point d'entree
+# D1        : base de donnees ou sont stockees les ouvertures
+# ============================================================
+
+name = "castignac-tracker"
+main = "src/worker.js"
+compatibility_date = "2024-11-01"
+
+# Route sur ton sous-domaine (a activer apres avoir cree le sous-domaine DNS).
+# Tant que le sous-domaine n'est pas pret, tu peux tester sur l'URL par defaut
+# castignac-tracker.<ton-compte>.workers.dev en commentant ce bloc.
+routes = [
+  { pattern = "track.castignac.com", custom_domain = true }
+]
+
+# Base D1 : remplace database_id par l'ID renvoye par
+#   npx wrangler d1 create castignac-tracker
+[[d1_databases]]
+binding = "DB"
+database_name = "castignac-tracker"
+database_id = "REMPLACER_PAR_ID_D1"
+
+[vars]
+# Cle secrete NON sensible cote lecture ; pour plus de securite, prefere un
+# secret via :  npx wrangler secret put STATS_KEY
+# (dans ce cas, retire la ligne ci-dessous et le code lira env.STATS_KEY).
+STATS_KEY = "REMPLACER_PAR_UNE_CLE_LONGUE_ALEATOIRE"

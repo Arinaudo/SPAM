@@ -154,6 +154,7 @@ class QueueTab(QWidget):
             greetings=self.mw.compose_tab.get_greetings(),
             closings=self.mw.compose_tab.get_closings(),
             signature=self.mw.compose_tab.get_signature(),
+            attachments=self.mw.compose_tab.get_attachments(),
         )
         counts = self.mw.db.counts(cid)
         self.refresh_campaigns()
@@ -186,6 +187,10 @@ class QueueTab(QWidget):
             closings = json.loads(c.get("closings_json") or "[]")
         except Exception:
             closings = []
+        try:
+            attachments = json.loads(c.get("attachments_json") or "[]")
+        except Exception:
+            attachments = []
         greetings = {
             "greeting_monsieur": c.get("greeting_monsieur", ""),
             "greeting_madame": c.get("greeting_madame", ""),
@@ -193,7 +198,7 @@ class QueueTab(QWidget):
         }
         self.mw.compose_tab.load_content(
             c["subject"], c["body_html"], images, greetings,
-            closings, c.get("signature_html", ""))
+            closings, c.get("signature_html", ""), attachments=attachments)
         self.mw.tabs.setCurrentWidget(self.mw.compose_tab)
         QMessageBox.information(
             self, "Campagne dupliquée",

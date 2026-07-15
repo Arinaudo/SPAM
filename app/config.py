@@ -17,7 +17,7 @@ from pathlib import Path
 APP_NAME = "SPAM"
 APP_TITLE = "SPAM"
 APP_SUBTITLE = "Systeme Pratique pour l'Automatisation des Mails"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 
 
 def app_data_dir() -> Path:
@@ -91,6 +91,18 @@ DEFAULT_SETTINGS = {
     "save_to_sent": True,
     # Empeche la mise en veille du PC pendant un envoi en cours
     "prevent_sleep": True,
+    # ---- Suivi d'ouverture (pixel de tracking) ----
+    # Active l'insertion d'un pixel invisible dans chaque mail.
+    "tracking_enabled": False,
+    # URL du Worker Cloudflare (ex. https://track.castignac.com), sans slash final.
+    "tracking_base_url": "",
+    # Cle de lecture des statistiques (endpoint /stats du Worker).
+    "tracking_api_key": "",
+    # ---- Suivi des reponses (lecture de la boite Outlook) ----
+    # Active la detection des reponses des destinataires (necessite Mail.Read).
+    # Quand actif, l'envoi capture l'identifiant de conversation de chaque mail
+    # pour une association fiable des reponses.
+    "reply_tracking_enabled": False,
 }
 
 

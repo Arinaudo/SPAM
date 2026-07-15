@@ -12,7 +12,7 @@ import time
 
 from PySide6.QtCore import QThread, Signal
 
-from . import personalize
+from . import personalize, tracking
 
 
 class SendWorker(QThread):
@@ -70,12 +70,36 @@ class SendWorker(QThread):
         except Exception:
             pass
 
+        # Pieces jointes (PDF/XLSX/DOCX...) : identiques pour tous les
+        # destinataires, on les encode UNE seule fois avant la boucle.
+        attachment_paths = []
+        try:
+            attachment_paths = json.loads(campaign.get("attachments_json") or "[]")
+        except Exception:
+            pass
+        file_attachments = personalize.collect_file_attachments(attachment_paths)
+        if file_attachments:
+            self.log.emit(f"{len(file_attachments)} piece(s) jointe(s) sur chaque mail.")
+
         body_template = campaign["body_html"]
         subject = campaign["subject"]
         delay_min = float(campaign.get("delay_min", 5.0))
         delay_max = float(campaign.get("delay_max", 8.0))
         save_to_sent = bool(campaign.get("save_to_sent", 1))
         add_ref = bool(campaign.get("add_ref", 1))
+
+        # Suivi d'ouverture (pixel de tracking)
+        tracking_enabled = bool(self.settings.get("tracking_enabled", False))
+        tracking_base_url = (self.settings.get("tracking_base_url", "") or "").strip()
+        if tracking_enabled and not tracking_base_url:
+            tracking_enabled = False
+            self.log.emit("Suivi d'ouverture ignore : URL du tracker non renseignee.")
+
+        # Suivi des reponses : quand actif, on capture le conversationId de
+        # chaque mail (envoi via brouillon) pour associer les reponses au fil.
+        reply_tracking = bool(self.settings.get("reply_tracking_enabled", False))
+        if reply_tracking:
+            self.log.emit("Suivi des reponses actif : capture du fil de conversation.")
 
         # Salutations / formules propres a la campagne
         try:
@@ -123,17 +147,24 @@ class SendWorker(QThread):
                 "prenom": item["prenom"], "nom": item["nom"],
                 "societe": item["societe"],
             }
-            ref = personalize.build_invisible_ref() if add_ref else None
+            # Un ref est necessaire si l'empreinte anti-spam OU le suivi
+            # d'ouverture est active (le token du pixel = ref sans "ref:").
+            ref = (personalize.build_invisible_ref()
+                   if (add_ref or tracking_enabled) else None)
             html = personalize.render_body(body_template, recipient, self.settings,
                                            ref=ref, overrides=overrides)
+            if tracking_enabled and ref:
+                pixel_token = tracking.token_from_ref(ref)
+                html = tracking.inject_pixel(html, tracking_base_url, pixel_token)
             inline_images = personalize.collect_inline_images(html, cid_to_path)
 
             try:
-                self.graph.send_mail(token, item["email"], subject, html,
-                                     inline_images=inline_images,
-                                     ref=ref if add_ref else None,
-                                     save_to_sent=save_to_sent)
+                conv_id = self._send_one(token, item["email"], subject, html,
+                                         inline_images, ref if add_ref else None,
+                                         save_to_sent, file_attachments, reply_tracking)
                 self.db.mark_item(item["id"], "sent", "", ref or "")
+                if conv_id:
+                    self.db.set_conversation_id(item["id"], conv_id)
                 self.item_done.emit(item["email"], "sent", "")
                 self.log.emit(f"[OK] {item['email']}")
             except Exception as e:
@@ -145,11 +176,13 @@ class SendWorker(QThread):
                         token = t
                         last_token_refresh = time.time()
                         try:
-                            self.graph.send_mail(token, item["email"], subject, html,
-                                                 inline_images=inline_images,
-                                                 ref=ref if add_ref else None,
-                                                 save_to_sent=save_to_sent)
+                            conv_id = self._send_one(
+                                token, item["email"], subject, html,
+                                inline_images, ref if add_ref else None,
+                                save_to_sent, file_attachments, reply_tracking)
                             self.db.mark_item(item["id"], "sent", "", ref or "")
+                            if conv_id:
+                                self.db.set_conversation_id(item["id"], conv_id)
                             self.item_done.emit(item["email"], "sent", "")
                             self.log.emit(f"[OK] {item['email']} (apres reconnexion)")
                             self._after_send(delay_min, delay_max)
@@ -166,6 +199,25 @@ class SendWorker(QThread):
         # arret demande
         self.db.set_campaign_status(self.campaign_id, "paused")
         self.finished_reason.emit("stopped")
+
+    def _send_one(self, token, to_email, subject, html, inline_images,
+                  ref_header, save_to_sent, file_attachments, reply_tracking):
+        """Envoie un mail. Retourne le conversationId (str, '' si indisponible).
+
+        Si le suivi des reponses est actif, on passe par la creation d'un
+        brouillon puis son envoi (deux appels) pour recuperer le conversationId.
+        Sinon, envoi direct classique (un seul appel).
+        """
+        if reply_tracking:
+            return self.graph.create_and_send_mail(
+                token, to_email, subject, html,
+                inline_images=inline_images, ref=ref_header,
+                save_to_sent=save_to_sent, file_attachments=file_attachments) or ""
+        self.graph.send_mail(
+            token, to_email, subject, html,
+            inline_images=inline_images, ref=ref_header,
+            save_to_sent=save_to_sent, file_attachments=file_attachments)
+        return ""
 
     def _after_send(self, delay_min, delay_max):
         if self._stop:

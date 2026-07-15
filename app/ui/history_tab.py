@@ -4,15 +4,31 @@ toutes campagnes confondues, avec recherche, filtre par statut et export CSV.
 """
 
 import csv
+import datetime
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
     QMessageBox, QPushButton, QScrollArea, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QWidget,
 )
 
-COLS = ["Date", "Email", "Nom", "Société", "Statut", "Campagne", "Objet", "Erreur"]
+from ..core import tracking, replies
+
+COLS = ["Date", "Email", "Nom", "Société", "Statut", "Ouvertures", "Réponses",
+        "Campagne", "Objet", "Erreur"]
+
+
+def _reply_display(reply_type, reply_count):
+    """Libelle de la colonne Réponses selon le type et le nombre."""
+    rt = reply_type or ""
+    rc = int(reply_count or 0)
+    if rt == "human":
+        return "Oui" if rc <= 1 else f"Oui ({rc})"
+    if rt == "auto":
+        return "Auto"
+    return "—"
 
 
 class HistoryTab(QWidget):
@@ -49,6 +65,14 @@ class HistoryTab(QWidget):
         b_reload = QPushButton("Actualiser")
         b_reload.clicked.connect(self.reload)
         top.addWidget(b_reload)
+        b_opens = QPushButton("Rafraîchir les ouvertures")
+        b_opens.setToolTip("Récupère les ouvertures depuis le tracker et met à jour la colonne Ouvertures.")
+        b_opens.clicked.connect(self.refresh_opens)
+        top.addWidget(b_opens)
+        b_replies = QPushButton("Rafraîchir les réponses")
+        b_replies.setToolTip("Lit la boîte Outlook et met à jour la colonne Réponses.")
+        b_replies.clicked.connect(self.refresh_replies)
+        top.addWidget(b_replies)
         b_export = QPushButton("Exporter CSV")
         b_export.clicked.connect(self.export_csv)
         top.addWidget(b_export)
@@ -75,15 +99,116 @@ class HistoryTab(QWidget):
         self.count_label.setText(f"{len(self._rows)} entrée(s)")
         self.table.setRowCount(len(self._rows))
         for i, r in enumerate(self._rows):
+            oc = int(r.get("open_count", 0) or 0)
+            opened = "—" if oc == 0 else (f"Oui ({oc})" if oc > 1 else "Oui")
+            rtype = r.get("reply_type", "") or ""
+            reply_disp = _reply_display(rtype, r.get("reply_count", 0))
             vals = [r.get("sent_at", ""), r.get("email", ""), r.get("nom", ""),
-                    r.get("societe", ""), r.get("status", ""), r.get("campaign", ""),
-                    r.get("subject", ""), r.get("error", "")]
+                    r.get("societe", ""), r.get("status", ""), opened, reply_disp,
+                    r.get("campaign", ""), r.get("subject", ""), r.get("error", "")]
             for j, v in enumerate(vals):
                 item = QTableWidgetItem(str(v))
                 if j == 4 and r.get("status") == "error":
                     item.setForeground(Qt.red)
+                if j == 5 and oc > 0:
+                    item.setForeground(Qt.darkGreen)
+                if j == 6 and rtype == "human":
+                    item.setForeground(Qt.darkGreen)
+                if j == 6 and rtype == "auto":
+                    item.setForeground(Qt.darkYellow)
                 self.table.setItem(i, j, item)
         self.table.resizeColumnsToContents()
+
+    def refresh_opens(self):
+        """Recupere les ouvertures depuis le tracker et met a jour la base."""
+        s = self.mw.settings
+        if not s.get("tracking_enabled", False):
+            QMessageBox.information(
+                self, "Suivi d'ouverture",
+                "Le suivi d'ouverture n'est pas activé.\n"
+                "Active-le dans les paramètres (URL du tracker + clé).")
+            return
+        base_url = (s.get("tracking_base_url", "") or "").strip()
+        api_key = (s.get("tracking_api_key", "") or "").strip()
+        if not base_url:
+            QMessageBox.warning(self, "Suivi d'ouverture",
+                                "URL du tracker non renseignée dans les paramètres.")
+            return
+        QGuiApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            records = tracking.fetch_opens(base_url, api_key)
+            updated = self.mw.db.apply_opens(records)
+        except Exception as e:
+            QGuiApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "Suivi d'ouverture",
+                                 f"Échec de la récupération :\n{e}")
+            return
+        QGuiApplication.restoreOverrideCursor()
+        self.reload()
+        QMessageBox.information(
+            self, "Suivi d'ouverture",
+            f"{len(records)} mail(s) ouvert(s) au total.\n"
+            f"{updated} destinataire(s) mis à jour dans l'historique.")
+
+    def _reply_since(self):
+        """Borne de temps (ISO UTC) pour le scan de la boite, ou None."""
+        last = self.mw.db.get_meta("last_reply_check")
+        if last:
+            return last
+        earliest = self.mw.db.earliest_sent_at()  # 'YYYY-mm-dd HH:MM:SS' (local)
+        if earliest:
+            try:
+                dt = datetime.datetime.strptime(earliest, "%Y-%m-%d %H:%M:%S")
+                # naive -> local -> UTC, avec 1 jour de marge de securite
+                dt_utc = dt.astimezone().astimezone(datetime.timezone.utc)
+                dt_utc -= datetime.timedelta(days=1)
+                return dt_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            except Exception:
+                return None
+        return None
+
+    def refresh_replies(self):
+        """Lit la boite Outlook, associe les reponses et met a jour la base."""
+        s = self.mw.settings
+        if not s.get("reply_tracking_enabled", False):
+            QMessageBox.information(
+                self, "Suivi des réponses",
+                "Le suivi des réponses n'est pas activé.\n"
+                "Active-le dans les paramètres, puis reconnecte-toi une fois "
+                "(pour accepter la lecture de la boîte).")
+            return
+        try:
+            token = self.mw.graph.get_token_silent()
+        except Exception:
+            token = None
+        if not token:
+            QMessageBox.warning(
+                self, "Suivi des réponses",
+                "Non connecté à Outlook (ou accès Mail.Read non accepté).\n"
+                "Reconnecte-toi dans les paramètres.")
+            return
+
+        started = datetime.datetime.now(datetime.timezone.utc)
+        since = self._reply_since()
+        QGuiApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            messages = self.mw.graph.list_inbox_messages(token, since_iso=since)
+            records = replies.build_reply_records(messages)
+            result = self.mw.db.apply_replies(records)
+            self.mw.db.set_meta("last_reply_check",
+                                started.strftime("%Y-%m-%dT%H:%M:%SZ"))
+        except Exception as e:
+            QGuiApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "Suivi des réponses",
+                                 f"Échec de la récupération :\n{e}")
+            return
+        QGuiApplication.restoreOverrideCursor()
+        self.reload()
+        QMessageBox.information(
+            self, "Suivi des réponses",
+            f"{result['matched']} réponse(s) associée(s) : "
+            f"{result['human']} humaine(s), {result['auto']} automatique(s).\n"
+            f"{result['processed']} message(s) analysé(s).")
 
     def export_csv(self):
         if not self._rows:
@@ -98,10 +223,17 @@ class HistoryTab(QWidget):
                 w = csv.writer(f, delimiter=";")
                 w.writerow(COLS)
                 for r in self._rows:
+                    oc = int(r.get("open_count", 0) or 0)
+                    opened = "" if oc == 0 else (f"Oui ({oc})" if oc > 1 else "Oui")
+                    reply_disp = _reply_display(r.get("reply_type", ""),
+                                                r.get("reply_count", 0))
+                    if reply_disp == "—":
+                        reply_disp = ""
                     w.writerow([r.get("sent_at", ""), r.get("email", ""),
                                 r.get("nom", ""), r.get("societe", ""),
-                                r.get("status", ""), r.get("campaign", ""),
-                                r.get("subject", ""), r.get("error", "")])
+                                r.get("status", ""), opened, reply_disp,
+                                r.get("campaign", ""), r.get("subject", ""),
+                                r.get("error", "")])
             QMessageBox.information(self, "Export", f"Historique exporte :\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "Export", f"Echec : {e}")

@@ -120,6 +120,46 @@ def _content_type_for(path: str) -> str:
     return "image/png"
 
 
+def collect_file_attachments(paths):
+    """Construit la liste des pieces jointes classiques (PDF/XLSX/DOCX...).
+
+    `paths` : liste de chemins de fichiers. Retourne une liste de dicts
+    {name, content_type, b64}. Les fichiers introuvables sont ignores.
+    Ces pieces jointes sont IDENTIQUES pour tous les destinataires : a
+    construire une seule fois avant la boucle d'envoi.
+    """
+    import mimetypes
+    import os
+
+    docs = []
+    for path in (paths or []):
+        if not path or not os.path.isfile(path):
+            continue
+        try:
+            ctype = mimetypes.guess_type(path)[0] or "application/octet-stream"
+            docs.append({
+                "name": os.path.basename(path),
+                "content_type": ctype,
+                "b64": file_to_b64(path),
+            })
+        except Exception:
+            continue
+    return docs
+
+
+def attachments_total_bytes(paths) -> int:
+    """Taille cumulee (octets) des pieces jointes existantes, pour alerter."""
+    import os
+    total = 0
+    for path in (paths or []):
+        try:
+            if path and os.path.isfile(path):
+                total += os.path.getsize(path)
+        except Exception:
+            pass
+    return total
+
+
 def collect_inline_images(html: str, cid_to_path: dict):
     """
     Repere les images referencees dans le HTML (src="cid:XXX") et construit la

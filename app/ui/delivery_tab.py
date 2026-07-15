@@ -18,23 +18,105 @@ from ..core import domain_auth, content_check
 
 RECOMMANDATIONS_HTML = """
 <h3 style="color:#0563C1;">Comment éviter de finir dans les spams</h3>
-<p><b>1. Authentifier le domaine (le plus important).</b> Activez
-<b>DKIM</b> et <b>DMARC</b> sur <i>castignac.com</i> (SPF est déjà en place).
-Cause n°1 de passage en spam ; testez l'état ci-dessus.</p>
-<p><b>2. Nettoyer la liste.</b> « Vérifier les adresses » dans l'onglet
-Destinataires ; n'envoyez pas aux adresses déjà en erreur.</p>
-<p><b>3. Monter en charge progressivement.</b> Quelques centaines/jour au
-début, puis augmentez sur 2–3 semaines.</p>
-<p><b>4. Espacer les envois.</b> Délai de quelques secondes entre mails +
-pauses entre lots (réglable ci-dessous).</p>
-<p><b>5. Soigner le contenu.</b> Évitez swisstransfer/wetransfer, les liens
-http://, les images lourdes, les MAJUSCULES et le vocabulaire trop
-commercial. Utilisez l'analyse ci-dessus.</p>
-<p><b>6. Personnaliser.</b> Civilité + variation des politesses : laissez
-activé.</p>
-<p><b>7. Toujours envoyer un test</b> avant une vraie campagne (Composer).</p>
-<p><b>8. Surveiller sa réputation</b> via Google Postmaster Tools et
-Microsoft SNDS.</p>
+<p style="color:#555;">Aucune astuce ne garantit 100&nbsp;% la boîte de réception.
+La délivrabilité est la somme de plusieurs bonnes pratiques : authentification,
+réputation, qualité de la liste, contenu et régularité. Voici la liste
+complète, de la plus importante à la plus fine.</p>
+
+<h4 style="color:#0563C1;">1. Authentifier le domaine (priorité absolue)</h4>
+<p>C'est la cause n°1 de passage en spam. Sur <i>castignac.com</i> :</p>
+<ul>
+<li><b>SPF</b> : autorise les serveurs qui envoient pour ton domaine (déjà en place).</li>
+<li><b>DKIM</b> : signe cryptographiquement chaque mail. À activer côté Microsoft 365.</li>
+<li><b>DMARC</b> : indique quoi faire si SPF/DKIM échouent. Commence en
+<i>p=none</i> pour observer, puis passe à <i>quarantine</i>.</li>
+<li><b>Alignement</b> : l'adresse d'expéditeur visible doit être sur le domaine
+authentifié (envoie depuis <i>@castignac.com</i>, pas depuis une adresse générique).</li>
+</ul>
+<p>Teste l'état réel avec le bouton ci-dessus et avec mail-tester.com.</p>
+
+<h4 style="color:#0563C1;">2. Réputation et montée en charge progressive</h4>
+<p>Un domaine qui se met soudain à envoyer des milliers de mails est traité
+comme suspect. Monte en charge sur 2 à 4 semaines : commence par quelques
+dizaines puis centaines par jour, augmente régulièrement si les taux de
+plainte et de rebond restent bas. Envoie à un rythme régulier plutôt que par
+gros pics ponctuels.</p>
+
+<h4 style="color:#0563C1;">3. Hygiène de la liste</h4>
+<p>Une liste sale détruit la réputation plus vite que tout le reste.</p>
+<ul>
+<li>Valide les adresses (onglet Destinataires, « Vérifier les adresses »).</li>
+<li>Ne renvoie jamais aux adresses déjà en erreur ; l'app les marque, retire-les.</li>
+<li>Un taux de rebond élevé (&gt; 3&nbsp;%) fait chuter la réputation : nettoie avant d'envoyer.</li>
+<li>N'utilise pas de listes achetées ou scrappées au hasard : risque de
+<i>spam traps</i> (adresses pièges) qui te blacklistent.</li>
+</ul>
+
+<h4 style="color:#0563C1;">4. Cadence d'envoi</h4>
+<p>Espace les envois : un délai de quelques secondes entre deux mails et des
+pauses entre lots (réglable ci-dessous) imitent un envoi humain. Évite d'envoyer
+tout un fichier d'un bloc. Privilégie les heures ouvrées.</p>
+
+<h4 style="color:#0563C1;">5. Contenu du mail</h4>
+<ul>
+<li>Garde un bon ratio texte / image : un mail tout en image (une grande
+bannière et rien d'autre) est un signal spam fort.</li>
+<li>Évite les images trop lourdes ; héberge-les ou attache-les en inline léger.</li>
+<li>Bannis les liens en <i>http://</i> (uniquement <i>https://</i>) et les
+raccourcisseurs (bit.ly...).</li>
+<li>Évite swisstransfer / wetransfer et les domaines de partage de fichiers.</li>
+<li>Pas de MAJUSCULES criardes, d'excès de « !!! », d'emojis à répétition ni de
+vocabulaire trop commercial (« gratuit », « offre exceptionnelle », « urgent »).</li>
+<li>Soigne l'orthographe : les fautes dégradent le score anti-spam.</li>
+<li>Un objet honnête et clair, sans clickbait ni faux « RE:&nbsp;» / « FW:&nbsp;».</li>
+<li>Utilise l'analyse anti-spam du mail ci-dessus avant d'envoyer.</li>
+</ul>
+
+<h4 style="color:#0563C1;">6. Pièces jointes et liens</h4>
+<p>En prospection à froid, une pièce jointe augmente le risque de spam. Préfère
+un <b>lien de téléchargement</b> dans le corps du mail plutôt qu'un fichier
+attaché. Si tu joins quand même un document : un <b>PDF léger</b> (&lt; 3&nbsp;Mo),
+jamais de .zip, ni de fichiers Office à macros (.docm / .xlsm), ni d'exécutables.</p>
+
+<h4 style="color:#0563C1;">7. Personnalisation et variation</h4>
+<p>Des milliers de mails strictement identiques forment une empreinte facile à
+filtrer. Laisse activés la civilité (Monsieur / Madame), la variation des
+formules de politesse et la référence unique par mail. Personnalise avec les
+champs de fusion ({PRENOM}, {SOCIETE}...).</p>
+
+<h4 style="color:#0563C1;">8. Désinscription et conformité (RGPD)</h4>
+<p>Un lien de désinscription clair est à la fois une obligation légale et un
+signal positif pour les filtres. Honore immédiatement les désabonnements et ne
+recontacte jamais un désinscrit. Ajoute tes mentions d'expéditeur (identité,
+coordonnées). Un destinataire qui peut se désinscrire ne te classe pas en spam,
+ce qui protège ta réputation.</p>
+
+<h4 style="color:#0563C1;">9. Engagement des destinataires</h4>
+<p>Les messageries observent qui ouvre et répond. Concentre tes envois sur les
+contacts qui interagissent, et retire progressivement ceux qui n'ouvrent jamais.
+Un mail d'un expéditeur souvent ignoré finit en spam pour tout le monde. Le suivi
+d'ouverture (onglet Paramètres) aide à repérer les contacts inactifs.</p>
+
+<h4 style="color:#0563C1;">10. Expéditeur et en-têtes</h4>
+<p>Utilise un nom d'expéditeur cohérent et stable (par ex. « Prénom Nom –
+Castignac »). L'adresse doit être réelle et capable de recevoir des réponses :
+une adresse qui n'accepte pas de retour (no-reply mal configuré) est mal vue.
+Évite de changer d'adresse d'expédition à chaque campagne.</p>
+
+<h4 style="color:#0563C1;">11. Surveiller sa réputation</h4>
+<p>Mesure au lieu de deviner :</p>
+<ul>
+<li><b>Google Postmaster Tools</b> : réputation domaine/IP et taux de plainte côté Gmail.</li>
+<li><b>Microsoft SNDS / JMRP</b> : réputation côté Outlook / Hotmail.</li>
+<li><b>mail-tester.com</b> : score détaillé avant campagne.</li>
+<li>Garde le <b>taux de plainte sous 0,3&nbsp;%</b> ; au-delà, la délivrabilité s'effondre.</li>
+<li>Vérifie que ton domaine/IP n'est pas sur une blacklist (mxtoolbox.com).</li>
+</ul>
+
+<h4 style="color:#0563C1;">12. Toujours tester avant d'envoyer</h4>
+<p>Avant chaque vraie campagne, envoie-toi un test (onglet Composer) et vérifie
+le rendu, les liens, la présence en boîte de réception sur plusieurs
+fournisseurs (Gmail, Outlook, Yahoo).</p>
 """
 
 

@@ -71,6 +71,7 @@ class ComposeTab(QWidget):
         super().__init__()
         self.mw = main_window
         self.images = {}   # {cid: chemin_fichier} pour cette campagne
+        self.attachments = []  # [chemins] pieces jointes (PDF/XLSX/DOCX...)
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -154,10 +155,14 @@ class ComposeTab(QWidget):
         # Panneau images + actions
         bottom = QHBoxLayout()
 
+        # Hauteurs communes pour que les deux cadres soient identiques.
+        LIST_H = 120
+        HINT_H = 18
+
         img_box = QGroupBox("Images inline (jointes au mail)")
         img_layout = QVBoxLayout(img_box)
         self.img_list = QListWidget()
-        self.img_list.setMaximumHeight(110)
+        self.img_list.setFixedHeight(LIST_H)
         img_layout.addWidget(self.img_list)
         img_btns = QHBoxLayout()
         b_add = QPushButton("Ajouter une image")
@@ -170,7 +175,31 @@ class ComposeTab(QWidget):
         img_btns.addWidget(b_copy)
         img_btns.addWidget(b_del)
         img_layout.addLayout(img_btns)
+        self.img_hint = QLabel("Images affichées dans le corps du mail.")
+        self.img_hint.setStyleSheet("color:#666;")
+        self.img_hint.setFixedHeight(HINT_H)
+        img_layout.addWidget(self.img_hint)
         bottom.addWidget(img_box, 1)
+
+        # Pieces jointes (documents : PDF, XLSX, DOCX...)
+        att_box = QGroupBox("Documents joints (PDF, Excel, Word...)")
+        att_layout = QVBoxLayout(att_box)
+        self.att_list = QListWidget()
+        self.att_list.setFixedHeight(LIST_H)
+        att_layout.addWidget(self.att_list)
+        att_btns = QHBoxLayout()
+        b_att_add = QPushButton("Ajouter un document")
+        b_att_add.clicked.connect(self.add_attachment)
+        b_att_del = QPushButton("Retirer")
+        b_att_del.clicked.connect(self.remove_attachment)
+        att_btns.addWidget(b_att_add)
+        att_btns.addWidget(b_att_del)
+        att_layout.addLayout(att_btns)
+        self.att_size_label = QLabel("Aucun document joint.")
+        self.att_size_label.setStyleSheet("color:#666;")
+        self.att_size_label.setFixedHeight(HINT_H)
+        att_layout.addWidget(self.att_size_label)
+        bottom.addWidget(att_box, 1)
 
         act_box = QVBoxLayout()
         b_preview = QPushButton("Aperçu du mail")
@@ -320,6 +349,62 @@ class ComposeTab(QWidget):
         self.img_list.takeItem(self.img_list.row(item))
 
     # ------------------------------------------------------------------
+    # Documents joints (PDF / XLSX / DOCX ...)
+    # ------------------------------------------------------------------
+    def _fmt_size(self, nbytes: int) -> str:
+        mo = nbytes / (1024 * 1024)
+        return f"{mo:.1f} Mo" if mo >= 0.1 else f"{nbytes // 1024} Ko"
+
+    def _refresh_att_size(self):
+        total = personalize.attachments_total_bytes(self.attachments)
+        if not self.attachments:
+            self.att_size_label.setStyleSheet("color:#666;")
+            self.att_size_label.setText("Aucun document joint.")
+            return
+        txt = f"Total joint : {self._fmt_size(total)}"
+        # Graph accepte ~3 Mo par mail en un seul appel ; au-dela on alerte.
+        if total > 3 * 1024 * 1024:
+            txt += "  ⚠️ Volumineux : risque de rejet et de spam. Préférez un lien."
+            self.att_size_label.setStyleSheet("color:#b00020;")
+        else:
+            self.att_size_label.setStyleSheet("color:#666;")
+        self.att_size_label.setText(txt)
+
+    def add_attachment(self):
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Choisir un ou plusieurs documents", "",
+            "Documents (*.pdf *.xlsx *.xls *.docx *.doc *.pptx *.csv *.txt *.zip);;"
+            "Tous les fichiers (*.*)")
+        if not paths:
+            return
+        for path in paths:
+            ext = Path(path).suffix.lower()
+            dest = ASSETS_DIR / f"att_{uuid.uuid4().hex[:8]}{ext}"
+            try:
+                shutil.copy2(path, dest)
+            except Exception as e:
+                QMessageBox.warning(self, "Document", f"Copie impossible : {e}")
+                continue
+            self.attachments.append(str(dest))
+            item = QListWidgetItem(Path(path).name)
+            item.setData(Qt.UserRole, str(dest))
+            self.att_list.addItem(item)
+        self._refresh_att_size()
+
+    def remove_attachment(self):
+        item = self.att_list.currentItem()
+        if not item:
+            return
+        path = item.data(Qt.UserRole)
+        if path in self.attachments:
+            self.attachments.remove(path)
+        self.att_list.takeItem(self.att_list.row(item))
+        self._refresh_att_size()
+
+    def get_attachments(self) -> list:
+        return list(self.attachments)
+
+    # ------------------------------------------------------------------
     # Construction du HTML final
     # ------------------------------------------------------------------
     def _build_full_html_from_simple(self) -> str:
@@ -368,7 +453,8 @@ class ComposeTab(QWidget):
     # ------------------------------------------------------------------
     # Modèles de mail / chargement de contenu
     # ------------------------------------------------------------------
-    def load_content(self, subject, html, images, greetings, closings, signature):
+    def load_content(self, subject, html, images, greetings, closings, signature,
+                     attachments=None):
         """Charge un mail complet dans le Composer (mode HTML avancé)."""
         self.subject_edit.setText(subject or "")
         # Images
@@ -379,6 +465,15 @@ class ComposeTab(QWidget):
             item = QListWidgetItem(f"{cid}  —  {Path(path).name}")
             item.setData(Qt.UserRole, cid)
             self.img_list.addItem(item)
+        # Documents joints
+        self.attachments = []
+        self.att_list.clear()
+        for path in (attachments or []):
+            self.attachments.append(path)
+            item = QListWidgetItem(Path(path).name)
+            item.setData(Qt.UserRole, path)
+            self.att_list.addItem(item)
+        self._refresh_att_size()
         # Salutations / politesse / signature
         g = greetings or {}
         self.greet_monsieur.setText(g.get("greeting_monsieur", ""))
@@ -512,11 +607,13 @@ class ComposeTab(QWidget):
         rendered = personalize.render_body(
             html, sample, self.mw.settings, overrides=self._overrides())
         images = personalize.collect_inline_images(rendered, self.images)
+        file_attachments = personalize.collect_file_attachments(self.attachments)
         subject = "[TEST] " + (self.get_subject() or "(sans objet)")
         try:
             self.mw.graph.send_mail(token, to, subject, rendered,
                                     inline_images=images, ref=None,
-                                    save_to_sent=False)
+                                    save_to_sent=False,
+                                    file_attachments=file_attachments)
             QMessageBox.information(
                 self, "Test envoyé",
                 f"Mail de test envoyé à {to}.\nVérifiez votre boîte de réception.")
