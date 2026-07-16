@@ -4,15 +4,20 @@ aux champs (EMAIL obligatoire, GENRE/PRENOM/NOM/SOCIETE optionnels), apercu et
 statistiques (valides / invalides / doublons).
 """
 
+import re
+
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QGroupBox, QHBoxLayout, QHeaderView, QLabel,
-    QLineEdit, QMessageBox, QProgressBar, QPushButton, QScrollArea,
-    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QGroupBox,
+    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QProgressBar,
+    QPushButton, QScrollArea, QTableWidget, QTableWidgetItem, QVBoxLayout,
+    QWidget,
 )
 
 from ..core import recipients as rec
 from ..core import email_validation as ev
+
+_EMAIL_SYNTAX_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
 
 
 class _ValidationWorker(QThread):
@@ -52,6 +57,8 @@ class RecipientsTab(QWidget):
         self.mw = main_window
         self.df = None
         self.combos = {}
+        self._manual = []          # destinataires ajoutes a la main
+        self._recipients = []
         self._build_ui()
 
     def _build_ui(self):
@@ -70,6 +77,11 @@ class RecipientsTab(QWidget):
         b_import.setMinimumHeight(38)
         b_import.clicked.connect(self.import_file)
         top.addWidget(b_import)
+        b_manual = QPushButton("Ajouter un destinataire")
+        b_manual.setMinimumHeight(38)
+        b_manual.setToolTip("Ajouter une adresse à la main (sans fichier).")
+        b_manual.clicked.connect(self.add_manual_recipient)
+        top.addWidget(b_manual)
         self.file_label = QLabel("Aucun fichier importe.")
         self.file_label.setStyleSheet("color:#666;")
         top.addWidget(self.file_label, 1)
@@ -168,21 +180,104 @@ class RecipientsTab(QWidget):
     def refresh_preview(self):
         # Toute modification de la liste/colonnes annule la validation precedente
         self._set_validated(False)
-        if self.df is None:
-            return
-        mapping = self.current_mapping()
-        if "email" not in mapping:
-            self.stats_label.setText("Sélectionnez au moins la colonne EMAIL.")
+        base = []
+        stats = {"total": 0, "valid": 0, "invalid": 0, "duplicates": 0}
+        if self.df is not None:
+            mapping = self.current_mapping()
+            if "email" not in mapping:
+                if not self._manual:
+                    self.stats_label.setText("Sélectionnez au moins la colonne EMAIL.")
+                    self.table.setRowCount(0)
+                    return
+            else:
+                try:
+                    base, stats = rec.build_recipients(self.df, mapping)
+                except Exception as e:
+                    self.stats_label.setText(str(e))
+                    return
+        combined = self._merge_manual(base)
+        if not combined:
+            self.stats_label.setText(
+                "Importez un fichier (colonne EMAIL) ou ajoutez un destinataire à la main.")
             self.table.setRowCount(0)
             return
-        try:
-            recipients, stats = rec.build_recipients(self.df, mapping)
-        except Exception as e:
-            self.stats_label.setText(str(e))
-            return
-        self._recipients = recipients
+        self._apply_suppression(combined)
+        stats["total"] = len(combined)
+        stats["valid"] = sum(1 for r in combined if r["valid"])
+        stats["invalid"] = sum(1 for r in combined if not r["valid"])
+        self._recipients = combined
         self._stats = stats
         self._render_table()
+
+    def _merge_manual(self, base):
+        """Combine les destinataires du fichier et ceux ajoutes a la main
+        (dedoublonnage par adresse, le fichier faisant foi)."""
+        seen = {r["email"].strip().lower() for r in base}
+        combined = list(base)
+        for r in self._manual:
+            e = r["email"].strip().lower()
+            if e and e not in seen:
+                combined.append(dict(r))
+                seen.add(e)
+        return combined
+
+    def _apply_suppression(self, recipients):
+        """Marque INVALIDE les adresses presentes dans la liste de suppression."""
+        try:
+            supp = self.mw.db.suppression_set()
+        except Exception:
+            supp = set()
+        if not supp:
+            return
+        for r in recipients:
+            if r["email"].strip().lower() in supp:
+                r["valid"] = False
+                r["validation"] = "SUPPRIMÉ — liste de suppression (bounce/désinscrit)"
+
+    def add_manual_recipient(self):
+        """Ouvre un dialogue pour ajouter une adresse a la main."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Ajouter un destinataire")
+        form = QFormLayout(dlg)
+        e_email = QLineEdit()
+        e_genre = QComboBox()
+        e_genre.addItems(["", "Monsieur", "Madame"])
+        e_prenom = QLineEdit()
+        e_nom = QLineEdit()
+        e_societe = QLineEdit()
+        form.addRow("Email (obligatoire) :", e_email)
+        form.addRow("Genre :", e_genre)
+        form.addRow("Prénom :", e_prenom)
+        form.addRow("Nom :", e_nom)
+        form.addRow("Société :", e_societe)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        form.addRow(buttons)
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        email = e_email.text().strip()
+        if not _EMAIL_SYNTAX_RE.match(email):
+            QMessageBox.warning(self, "Destinataire",
+                                "Adresse email invalide ou vide.")
+            return
+        if any(r["email"].strip().lower() == email.lower() for r in self._manual):
+            QMessageBox.information(self, "Destinataire",
+                                    "Cette adresse est déjà dans les ajouts manuels.")
+            return
+        self._manual.append({
+            "email": email,
+            "genre": e_genre.currentText().strip(),
+            "prenom": e_prenom.text().strip(),
+            "nom": e_nom.text().strip(),
+            "societe": e_societe.text().strip(),
+            "valid": True,
+            "validation": "",
+        })
+        if self.df is None:
+            self.file_label.setText(f"{len(self._manual)} destinataire(s) ajouté(s) à la main.")
+        self.refresh_preview()
 
     def _on_search(self):
         if getattr(self, "_recipients", None) is not None:

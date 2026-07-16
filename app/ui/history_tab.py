@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
-from ..core import tracking, replies
+from ..core import tracking, replies, bounces
 
 COLS = ["Date", "Email", "Nom", "Société", "Statut", "Ouvertures", "Réponses",
         "Campagne", "Objet", "Erreur"]
@@ -73,6 +73,11 @@ class HistoryTab(QWidget):
         b_replies.setToolTip("Lit la boîte Outlook et met à jour la colonne Réponses.")
         b_replies.clicked.connect(self.refresh_replies)
         top.addWidget(b_replies)
+        b_bounces = QPushButton("Rafraîchir les bounces")
+        b_bounces.setToolTip("Lit les rapports de non-remise (NDR) et met les adresses "
+                             "mortes en liste de suppression + statut invalide.")
+        b_bounces.clicked.connect(self.refresh_bounces)
+        top.addWidget(b_bounces)
         b_export = QPushButton("Exporter CSV")
         b_export.clicked.connect(self.export_csv)
         top.addWidget(b_export)
@@ -150,11 +155,8 @@ class HistoryTab(QWidget):
             f"{len(records)} mail(s) ouvert(s) au total.\n"
             f"{updated} destinataire(s) mis à jour dans l'historique.")
 
-    def _reply_since(self):
-        """Borne de temps (ISO UTC) pour le scan de la boite, ou None."""
-        last = self.mw.db.get_meta("last_reply_check")
-        if last:
-            return last
+    def _since_from_earliest(self):
+        """Borne ISO UTC calculee depuis le plus ancien envoi (marge 1 jour), ou None."""
         earliest = self.mw.db.earliest_sent_at()  # 'YYYY-mm-dd HH:MM:SS' (local)
         if earliest:
             try:
@@ -166,6 +168,10 @@ class HistoryTab(QWidget):
             except Exception:
                 return None
         return None
+
+    def _reply_since(self):
+        """Borne de temps (ISO UTC) pour le scan des reponses, ou None."""
+        return self.mw.db.get_meta("last_reply_check") or self._since_from_earliest()
 
     def refresh_replies(self):
         """Lit la boite Outlook, associe les reponses et met a jour la base."""
@@ -209,6 +215,41 @@ class HistoryTab(QWidget):
             f"{result['matched']} réponse(s) associée(s) : "
             f"{result['human']} humaine(s), {result['auto']} automatique(s).\n"
             f"{result['processed']} message(s) analysé(s).")
+
+    def refresh_bounces(self):
+        """Lit les rapports de non-remise (NDR), supprime et marque invalide."""
+        try:
+            token = self.mw.graph.get_token_silent()
+        except Exception:
+            token = None
+        if not token:
+            QMessageBox.warning(
+                self, "Bounces",
+                "Non connecté à Outlook (ou accès Mail.Read non accepté).\n"
+                "Reconnecte-toi dans les paramètres.")
+            return
+
+        started = datetime.datetime.now(datetime.timezone.utc)
+        since = self.mw.db.get_meta("last_bounce_check") or self._since_from_earliest()
+        QGuiApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            messages = self.mw.graph.list_inbox_messages(token, since_iso=since)
+            sent = self.mw.db.sent_emails_set()
+            records = bounces.build_bounce_records(messages, sent)
+            result = self.mw.db.apply_bounces(records)
+            self.mw.db.set_meta("last_bounce_check",
+                                started.strftime("%Y-%m-%dT%H:%M:%SZ"))
+        except Exception as e:
+            QGuiApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "Bounces", f"Échec de la récupération :\n{e}")
+            return
+        QGuiApplication.restoreOverrideCursor()
+        self.reload()
+        QMessageBox.information(
+            self, "Bounces",
+            f"{result['processed']} rapport(s) de non-remise analysé(s).\n"
+            f"{result['suppressed']} adresse(s) ajoutée(s) à la liste de suppression, "
+            f"{result['marked']} envoi(s) marqué(s) invalide.")
 
     def export_csv(self):
         if not self._rows:

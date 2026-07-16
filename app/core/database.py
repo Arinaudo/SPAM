@@ -64,6 +64,20 @@ CREATE TABLE IF NOT EXISTS processed_replies (
     message_id   TEXT PRIMARY KEY,
     processed_at TEXT
 );
+
+-- Liste de suppression (ne plus jamais contacter) : bounces durs, plaintes,
+-- desinscriptions. Appliquee au moment de valider une liste de destinataires.
+CREATE TABLE IF NOT EXISTS suppression (
+    email    TEXT PRIMARY KEY,   -- adresse en minuscules
+    reason   TEXT DEFAULT '',
+    added_at TEXT
+);
+
+-- Messages de non-remise (NDR) deja traites, pour ne pas recompter.
+CREATE TABLE IF NOT EXISTS processed_bounces (
+    message_id   TEXT PRIMARY KEY,
+    processed_at TEXT
+);
 """
 
 
@@ -396,6 +410,97 @@ class Database:
                 "SELECT MIN(sent_at) m FROM queue_items "
                 "WHERE status='sent' AND sent_at<>''").fetchone()
             return row["m"] if row and row["m"] else ""
+
+    def sent_emails_set(self) -> set:
+        """Adresses deja envoyees ou en file (minuscules), pour rapprocher les NDR."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT DISTINCT lower(email) e FROM queue_items "
+                "WHERE status IN ('sent','pending')").fetchall()
+            return {r["e"] for r in rows if r["e"]}
+
+    # ------------------------------------------------------------------
+    # Liste de suppression (ne plus jamais contacter) + bounces
+    # ------------------------------------------------------------------
+
+    def add_suppression(self, email, reason=""):
+        """Ajoute (ou met a jour) une adresse dans la liste de suppression."""
+        e = (email or "").strip().lower()
+        if not e:
+            return
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO suppression(email, reason, added_at) VALUES(?,?,?) "
+                "ON CONFLICT(email) DO UPDATE SET reason=excluded.reason",
+                (e, reason or "", _now()))
+            self._conn.commit()
+
+    def remove_suppression(self, email):
+        e = (email or "").strip().lower()
+        with self._lock:
+            self._conn.execute("DELETE FROM suppression WHERE email=?", (e,))
+            self._conn.commit()
+
+    def suppression_set(self) -> set:
+        """Ensemble des adresses supprimees (minuscules), pour filtrage rapide."""
+        with self._lock:
+            rows = self._conn.execute("SELECT email FROM suppression").fetchall()
+            return {r["email"] for r in rows}
+
+    def suppression_rows(self) -> list:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT email, reason, added_at FROM suppression "
+                "ORDER BY added_at DESC").fetchall()
+            return [dict(r) for r in rows]
+
+    def suppression_count(self) -> int:
+        with self._lock:
+            return self._conn.execute(
+                "SELECT COUNT(*) c FROM suppression").fetchone()["c"]
+
+    def apply_bounces(self, records) -> dict:
+        """Traite des messages de non-remise (NDR) : ajoute les adresses en
+        echec a la liste de suppression et marque les envois correspondants
+        en 'invalid'.
+
+        `records` : liste de dicts {message_id, emails: [...], reason}.
+        Idempotent via la table processed_bounces.
+
+        Retourne {processed, suppressed, marked}.
+        """
+        processed = suppressed = marked = 0
+        with self._lock:
+            for rec in (records or []):
+                mid = str(rec.get("message_id", "")).strip()
+                if not mid:
+                    continue
+                seen = self._conn.execute(
+                    "SELECT 1 FROM processed_bounces WHERE message_id=?",
+                    (mid,)).fetchone()
+                if seen:
+                    continue
+                reason = (rec.get("reason") or "Non remis (NDR)")[:300]
+                for email in (rec.get("emails") or []):
+                    e = (email or "").strip().lower()
+                    if not e:
+                        continue
+                    self._conn.execute(
+                        "INSERT INTO suppression(email, reason, added_at) "
+                        "VALUES(?,?,?) ON CONFLICT(email) DO UPDATE SET "
+                        "reason=excluded.reason", (e, reason, _now()))
+                    suppressed += 1
+                    cur = self._conn.execute(
+                        "UPDATE queue_items SET status='invalid', error=? "
+                        "WHERE lower(email)=? AND status IN ('sent','pending')",
+                        (reason, e))
+                    marked += cur.rowcount
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO processed_bounces(message_id, processed_at) "
+                    "VALUES(?, ?)", (mid, _now()))
+                processed += 1
+            self._conn.commit()
+        return {"processed": processed, "suppressed": suppressed, "marked": marked}
 
     def items(self, campaign_id, status=None, limit=None, offset=0):
         with self._lock:

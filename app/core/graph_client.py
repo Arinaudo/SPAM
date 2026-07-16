@@ -238,7 +238,7 @@ class GraphClient:
         automatiques).
         """
         headers = {"Authorization": f"Bearer {token}"}
-        select = ("id,conversationId,receivedDateTime,subject,from,"
+        select = ("id,conversationId,receivedDateTime,subject,from,bodyPreview,"
                   "internetMessageId,internetMessageHeaders")
         params = {
             "$select": select,
