@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
 
 from ..core import recipients as rec
 from ..core import email_validation as ev
+from . import theme
+from .widgets import NoScrollComboBox
 
 _EMAIL_SYNTAX_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
 
@@ -83,7 +85,7 @@ class RecipientsTab(QWidget):
         b_manual.clicked.connect(self.add_manual_recipient)
         top.addWidget(b_manual)
         self.file_label = QLabel("Aucun fichier importe.")
-        self.file_label.setStyleSheet("color:#666;")
+        self.file_label.setStyleSheet(f"color:{theme.hint()};")
         top.addWidget(self.file_label, 1)
         root.addLayout(top)
 
@@ -94,7 +96,7 @@ class RecipientsTab(QWidget):
             row = QHBoxLayout()
             lab = QLabel(label)
             lab.setMinimumWidth(260)
-            combo = QComboBox()
+            combo = NoScrollComboBox()
             combo.currentIndexChanged.connect(self.refresh_preview)
             self.combos[field] = combo
             row.addWidget(lab)

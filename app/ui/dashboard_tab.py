@@ -8,6 +8,8 @@ import csv
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter
+
+from . import theme
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QGroupBox, QHBoxLayout, QLabel, QMessageBox,
     QPushButton, QScrollArea, QVBoxLayout, QWidget,
@@ -95,7 +97,7 @@ class DashboardTab(QWidget):
         self.recap_label.setWordWrap(True)
         recap_layout.addWidget(self.recap_label)
         self.rate_label = QLabel("")
-        self.rate_label.setStyleSheet("color:#555;")
+        self.rate_label.setStyleSheet(f"color:{theme.hint()};")
         recap_layout.addWidget(self.rate_label)
         root.addWidget(recap_box)
 

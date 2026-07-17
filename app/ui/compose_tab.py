@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from ..config import ASSETS_DIR, resource_dir
 from ..core import personalize
 from ..core import templates_store
+from . import theme
 
 
 def load_default_template() -> str:
@@ -101,7 +102,7 @@ class ComposeTab(QWidget):
         mode_row.addWidget(self.html_mode)
         mode_row.addStretch()
         hint = QLabel("Champs de fusion : {PRENOM} {NOM} {SOCIETE} {EMAIL}")
-        hint.setStyleSheet("color:#666;")
+        hint.setStyleSheet(f"color:{theme.hint()};")
         mode_row.addWidget(hint)
         root.addLayout(mode_row)
 
@@ -176,7 +177,7 @@ class ComposeTab(QWidget):
         img_btns.addWidget(b_del)
         img_layout.addLayout(img_btns)
         self.img_hint = QLabel("Images affichées dans le corps du mail.")
-        self.img_hint.setStyleSheet("color:#666;")
+        self.img_hint.setStyleSheet(f"color:{theme.hint()};")
         self.img_hint.setFixedHeight(HINT_H)
         img_layout.addWidget(self.img_hint)
         bottom.addWidget(img_box, 1)
@@ -196,7 +197,7 @@ class ComposeTab(QWidget):
         att_btns.addWidget(b_att_del)
         att_layout.addLayout(att_btns)
         self.att_size_label = QLabel("Aucun document joint.")
-        self.att_size_label.setStyleSheet("color:#666;")
+        self.att_size_label.setStyleSheet(f"color:{theme.hint()};")
         self.att_size_label.setFixedHeight(HINT_H)
         att_layout.addWidget(self.att_size_label)
         bottom.addWidget(att_box, 1)
@@ -358,16 +359,16 @@ class ComposeTab(QWidget):
     def _refresh_att_size(self):
         total = personalize.attachments_total_bytes(self.attachments)
         if not self.attachments:
-            self.att_size_label.setStyleSheet("color:#666;")
+            self.att_size_label.setStyleSheet(f"color:{theme.hint()};")
             self.att_size_label.setText("Aucun document joint.")
             return
         txt = f"Total joint : {self._fmt_size(total)}"
         # Graph accepte ~3 Mo par mail en un seul appel ; au-dela on alerte.
         if total > 3 * 1024 * 1024:
             txt += "  ⚠️ Volumineux : risque de rejet et de spam. Préférez un lien."
-            self.att_size_label.setStyleSheet("color:#b00020;")
+            self.att_size_label.setStyleSheet(f"color:{theme.danger()};")
         else:
-            self.att_size_label.setStyleSheet("color:#666;")
+            self.att_size_label.setStyleSheet(f"color:{theme.hint()};")
         self.att_size_label.setText(txt)
 
     def add_attachment(self):
@@ -406,6 +407,16 @@ class ComposeTab(QWidget):
 
     def get_attachments(self) -> list:
         return list(self.attachments)
+
+    def focus_compose(self):
+        """Place le curseur dans la zone de redaction du mail.
+
+        Appelee depuis l'onglet Mode d'emploi (lien « composer le mail ») pour
+        arriver directement pret a ecrire.
+        """
+        w = self.stack.currentWidget()
+        if w is not None:
+            w.setFocus()
 
     # ------------------------------------------------------------------
     # Construction du HTML final

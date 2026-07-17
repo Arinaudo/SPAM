@@ -6,12 +6,14 @@ Onglet Parametres : connexion au compte Outlook, configuration Azure
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
-    QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
+    QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
+    QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QVBoxLayout, QWidget,
 )
 
 from ..core import tracking
+from . import theme
+from .widgets import NoScrollComboBox
 
 
 class SettingsTab(QWidget):
@@ -49,6 +51,19 @@ class SettingsTab(QWidget):
         acc_layout.addLayout(btns)
         root.addWidget(acc_box)
 
+        # --- Apparence ---
+        appear_box = QGroupBox("Apparence")
+        appear_form = QFormLayout(appear_box)
+        self.theme_combo = NoScrollComboBox()
+        self.theme_combo.addItem("Sombre", "dark")
+        self.theme_combo.addItem("Clair", "light")
+        appear_form.addRow("Thème :", self.theme_combo)
+        hint_theme = QLabel("Le changement de thème s'applique au redémarrage de l'application.")
+        hint_theme.setStyleSheet(f"color:{theme.hint()};")
+        hint_theme.setWordWrap(True)
+        appear_form.addRow("", hint_theme)
+        root.addWidget(appear_box)
+
         # --- Configuration Azure ---
         azure_box = QGroupBox("Configuration Azure (avancé)")
         azure_form = QFormLayout(azure_box)
@@ -67,7 +82,7 @@ class SettingsTab(QWidget):
         hint_sleep = QLabel("L'ordinateur reste actif tant qu'une campagne tourne "
                             "(l'écran peut s'éteindre). La cadence et les autres "
                             "réglages anti-spam sont dans l'onglet « Délivrabilité ».")
-        hint_sleep.setStyleSheet("color:#595959;")
+        hint_sleep.setStyleSheet(f"color:{theme.hint()};")
         hint_sleep.setWordWrap(True)
         envoi_layout.addWidget(hint_sleep)
         root.addWidget(envoi_box)
@@ -113,7 +128,7 @@ class SettingsTab(QWidget):
             "les images : une ouverture non détectée ne signifie pas un échec. "
             "Déploiement du tracker : voir le dossier « tracker »."
         )
-        hint_track.setStyleSheet("color:#595959;")
+        hint_track.setStyleSheet(f"color:{theme.hint()};")
         hint_track.setWordWrap(True)
         track_layout.addWidget(hint_track)
         root.addWidget(track_box)
@@ -131,7 +146,7 @@ class SettingsTab(QWidget):
             "(bouton « Rafraîchir les réponses »). Les réponses automatiques "
             "(absence du bureau) sont signalées à part."
         )
-        hint_reply.setStyleSheet("color:#595959;")
+        hint_reply.setStyleSheet(f"color:{theme.hint()};")
         hint_reply.setWordWrap(True)
         reply_layout.addWidget(hint_reply)
         root.addWidget(reply_box)
@@ -155,6 +170,8 @@ class SettingsTab(QWidget):
         self.tracking_base_url.setText(s.get("tracking_base_url", ""))
         self.tracking_api_key.setText(s.get("tracking_api_key", ""))
         self.reply_tracking_enabled.setChecked(bool(s.get("reply_tracking_enabled", False)))
+        idx = self.theme_combo.findData(s.get("theme", "dark"))
+        self.theme_combo.setCurrentIndex(idx if idx >= 0 else 0)
         self._refresh_status()
 
     def on_show(self):
@@ -206,7 +223,10 @@ class SettingsTab(QWidget):
         closings = [l.strip() for l in self.closings.toPlainText().splitlines() if l.strip()]
         azure_changed = (self.client_id.text().strip() != s.get("client_id") or
                          self.tenant_id.text().strip() != s.get("tenant_id"))
+        new_theme = self.theme_combo.currentData() or "dark"
+        theme_changed = (new_theme != s.get("theme", "dark"))
         s.update({
+            "theme": new_theme,
             "client_id": self.client_id.text().strip(),
             "tenant_id": self.tenant_id.text().strip() or "common",
             "prevent_sleep": self.prevent_sleep.isChecked(),
@@ -223,4 +243,7 @@ class SettingsTab(QWidget):
         if azure_changed:
             self.mw.rebuild_graph_client()
             self._refresh_status()
-        QMessageBox.information(self, "Parametres", "Parametres enregistres.")
+        msg = "Parametres enregistres."
+        if theme_changed:
+            msg += "\n\nLe nouveau thème s'appliquera au redémarrage de l'application."
+        QMessageBox.information(self, "Parametres", msg)

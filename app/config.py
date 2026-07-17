@@ -103,6 +103,9 @@ DEFAULT_SETTINGS = {
     # Quand actif, l'envoi capture l'identifiant de conversation de chaque mail
     # pour une association fiable des reponses.
     "reply_tracking_enabled": False,
+    # ---- Apparence ----
+    # Theme de l'interface : "dark" (par defaut) ou "light".
+    "theme": "dark",
 }
 
 

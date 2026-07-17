@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
 
 from ..core.sender import SendWorker
 from ..core.keepawake import KeepAwake
+from . import theme
+from .widgets import NoScrollComboBox
 
 
 class QueueTab(QWidget):
@@ -41,10 +43,12 @@ class QueueTab(QWidget):
         # Selection / creation de campagne
         sel_box = QGroupBox("Campagne")
         sel_layout = QHBoxLayout(sel_box)
-        self.campaign_combo = QComboBox()
+        self.campaign_combo = NoScrollComboBox()
         self.campaign_combo.currentIndexChanged.connect(self._on_campaign_changed)
         sel_layout.addWidget(self.campaign_combo, 1)
-        b_new = QPushButton("Créer depuis Composer + Destinataires")
+        b_new = QPushButton("Préparer l'envoi")
+        b_new.setToolTip("Regroupe le mail (onglet Composer) et la liste validée "
+                         "(onglet Destinataires) pour créer l'envoi.")
         b_new.clicked.connect(self.create_campaign)
         sel_layout.addWidget(b_new)
         b_refresh = QPushButton("Actualiser")
@@ -68,7 +72,7 @@ class QueueTab(QWidget):
         self.counts_label.setStyleSheet("font-weight:bold;")
         prog_layout.addWidget(self.counts_label)
         self.eta_label = QLabel("")
-        self.eta_label.setStyleSheet("color:#555;")
+        self.eta_label.setStyleSheet(f"color:{theme.hint()};")
         prog_layout.addWidget(self.eta_label)
         root.addWidget(prog_box)
 
@@ -248,17 +252,33 @@ class QueueTab(QWidget):
                                     "Aucun destinataire en attente dans cette campagne.")
             return
 
-        # Confirmation avant tout envoi réel
+        # Recapitulatif clair avant tout envoi reel
         pending = counts["pending"]
         avg = (self.mw.settings.get("delay_min", 5.0) +
                self.mw.settings.get("delay_max", 8.0)) / 2.0
         duree = self._fmt_duration(int(pending * avg))
         info = self.mw.graph.signed_in_user()
         expediteur = info[1] if info and info[1] else "votre compte Outlook"
+        campaign = self.mw.db.get_campaign(self.current_campaign_id) or {}
+        objet = campaign.get("subject", "") or "(sans objet)"
+        suivi = []
+        if self.mw.settings.get("tracking_enabled", False):
+            suivi.append("ouvertures")
+        if self.mw.settings.get("reply_tracking_enabled", False):
+            suivi.append("réponses")
+        suivi_txt = ", ".join(suivi) if suivi else "aucun"
+        invalides = counts.get("invalid", 0)
+        ignore_txt = (f"\n{invalides} adresse(s) invalide(s) seront ignorée(s)."
+                      if invalides else "")
         confirm = QMessageBox.question(
             self, "Confirmer l'envoi",
-            f"Vous allez envoyer {pending} mail(s) depuis :\n{expediteur}\n\n"
-            f"Durée estimée : {duree}.\n\n"
+            "Vérifiez avant d'envoyer :\n\n"
+            f"Destinataires : {pending}\n"
+            f"Expéditeur : {expediteur}\n"
+            f"Objet : {objet}\n"
+            f"Suivi : {suivi_txt}\n"
+            f"Durée estimée : {duree}"
+            f"{ignore_txt}\n\n"
             "Démarrer l'envoi maintenant ?",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if confirm != QMessageBox.Yes:

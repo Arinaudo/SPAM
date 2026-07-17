@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import tracking, replies, bounces
+from .widgets import NoScrollComboBox
 
 COLS = ["Date", "Email", "Nom", "Société", "Statut", "Ouvertures", "Réponses",
         "Campagne", "Objet", "Erreur"]
@@ -56,7 +57,7 @@ class HistoryTab(QWidget):
         self.search.returnPressed.connect(self.reload)
         top.addWidget(self.search, 1)
         top.addWidget(QLabel("Statut :"))
-        self.status_filter = QComboBox()
+        self.status_filter = NoScrollComboBox()
         self.status_filter.addItem("Tous", "")
         self.status_filter.addItem("Envoyés", "sent")
         self.status_filter.addItem("Erreurs", "error")
@@ -73,9 +74,9 @@ class HistoryTab(QWidget):
         b_replies.setToolTip("Lit la boîte Outlook et met à jour la colonne Réponses.")
         b_replies.clicked.connect(self.refresh_replies)
         top.addWidget(b_replies)
-        b_bounces = QPushButton("Rafraîchir les bounces")
-        b_bounces.setToolTip("Lit les rapports de non-remise (NDR) et met les adresses "
-                             "mortes en liste de suppression + statut invalide.")
+        b_bounces = QPushButton("Vérifier les adresses en échec")
+        b_bounces.setToolTip("Détecte les mails non remis et met ces adresses en "
+                             "« Ne plus contacter » (elles ne repartiront plus).")
         b_bounces.clicked.connect(self.refresh_bounces)
         top.addWidget(b_bounces)
         b_export = QPushButton("Exporter CSV")

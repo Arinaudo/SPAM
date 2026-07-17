@@ -15,15 +15,17 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import domain_auth, content_check
+from . import theme
+from .widgets import NoScrollDoubleSpinBox, NoScrollSpinBox
 
 RECOMMANDATIONS_HTML = """
-<h3 style="color:#0563C1;">Comment éviter de finir dans les spams</h3>
-<p style="color:#555;">Aucune astuce ne garantit 100&nbsp;% la boîte de réception.
+<h3 style="color:__ACCENT__;">Comment éviter de finir dans les spams</h3>
+<p style="color:__MUTED__;">Aucune astuce ne garantit 100&nbsp;% la boîte de réception.
 La délivrabilité est la somme de plusieurs bonnes pratiques : authentification,
 réputation, qualité de la liste, contenu et régularité. Voici la liste
 complète, de la plus importante à la plus fine.</p>
 
-<h4 style="color:#0563C1;">1. Authentifier le domaine (priorité absolue)</h4>
+<h4 style="color:__ACCENT__;">1. Authentifier le domaine (priorité absolue)</h4>
 <p>C'est la cause n°1 de passage en spam. Sur <i>castignac.com</i> :</p>
 <ul>
 <li><b>SPF</b> : autorise les serveurs qui envoient pour ton domaine (déjà en place).</li>
@@ -35,14 +37,14 @@ authentifié (envoie depuis <i>@castignac.com</i>, pas depuis une adresse géné
 </ul>
 <p>Teste l'état réel avec le bouton ci-dessus et avec mail-tester.com.</p>
 
-<h4 style="color:#0563C1;">2. Réputation et montée en charge progressive</h4>
+<h4 style="color:__ACCENT__;">2. Réputation et montée en charge progressive</h4>
 <p>Un domaine qui se met soudain à envoyer des milliers de mails est traité
 comme suspect. Monte en charge sur 2 à 4 semaines : commence par quelques
 dizaines puis centaines par jour, augmente régulièrement si les taux de
 plainte et de rebond restent bas. Envoie à un rythme régulier plutôt que par
 gros pics ponctuels.</p>
 
-<h4 style="color:#0563C1;">3. Hygiène de la liste</h4>
+<h4 style="color:__ACCENT__;">3. Hygiène de la liste</h4>
 <p>Une liste sale détruit la réputation plus vite que tout le reste.</p>
 <ul>
 <li>Valide les adresses (onglet Destinataires, « Vérifier les adresses »).</li>
@@ -52,12 +54,12 @@ gros pics ponctuels.</p>
 <i>spam traps</i> (adresses pièges) qui te blacklistent.</li>
 </ul>
 
-<h4 style="color:#0563C1;">4. Cadence d'envoi</h4>
+<h4 style="color:__ACCENT__;">4. Cadence d'envoi</h4>
 <p>Espace les envois : un délai de quelques secondes entre deux mails et des
 pauses entre lots (réglable ci-dessous) imitent un envoi humain. Évite d'envoyer
 tout un fichier d'un bloc. Privilégie les heures ouvrées.</p>
 
-<h4 style="color:#0563C1;">5. Contenu du mail</h4>
+<h4 style="color:__ACCENT__;">5. Contenu du mail</h4>
 <ul>
 <li>Garde un bon ratio texte / image : un mail tout en image (une grande
 bannière et rien d'autre) est un signal spam fort.</li>
@@ -72,38 +74,38 @@ vocabulaire trop commercial (« gratuit », « offre exceptionnelle », « urgen
 <li>Utilise l'analyse anti-spam du mail ci-dessus avant d'envoyer.</li>
 </ul>
 
-<h4 style="color:#0563C1;">6. Pièces jointes et liens</h4>
+<h4 style="color:__ACCENT__;">6. Pièces jointes et liens</h4>
 <p>En prospection à froid, une pièce jointe augmente le risque de spam. Préfère
 un <b>lien de téléchargement</b> dans le corps du mail plutôt qu'un fichier
 attaché. Si tu joins quand même un document : un <b>PDF léger</b> (&lt; 3&nbsp;Mo),
 jamais de .zip, ni de fichiers Office à macros (.docm / .xlsm), ni d'exécutables.</p>
 
-<h4 style="color:#0563C1;">7. Personnalisation et variation</h4>
+<h4 style="color:__ACCENT__;">7. Personnalisation et variation</h4>
 <p>Des milliers de mails strictement identiques forment une empreinte facile à
 filtrer. Laisse activés la civilité (Monsieur / Madame), la variation des
 formules de politesse et la référence unique par mail. Personnalise avec les
 champs de fusion ({PRENOM}, {SOCIETE}...).</p>
 
-<h4 style="color:#0563C1;">8. Désinscription et conformité (RGPD)</h4>
+<h4 style="color:__ACCENT__;">8. Désinscription et conformité (RGPD)</h4>
 <p>Un lien de désinscription clair est à la fois une obligation légale et un
 signal positif pour les filtres. Honore immédiatement les désabonnements et ne
 recontacte jamais un désinscrit. Ajoute tes mentions d'expéditeur (identité,
 coordonnées). Un destinataire qui peut se désinscrire ne te classe pas en spam,
 ce qui protège ta réputation.</p>
 
-<h4 style="color:#0563C1;">9. Engagement des destinataires</h4>
+<h4 style="color:__ACCENT__;">9. Engagement des destinataires</h4>
 <p>Les messageries observent qui ouvre et répond. Concentre tes envois sur les
 contacts qui interagissent, et retire progressivement ceux qui n'ouvrent jamais.
 Un mail d'un expéditeur souvent ignoré finit en spam pour tout le monde. Le suivi
 d'ouverture (onglet Paramètres) aide à repérer les contacts inactifs.</p>
 
-<h4 style="color:#0563C1;">10. Expéditeur et en-têtes</h4>
+<h4 style="color:__ACCENT__;">10. Expéditeur et en-têtes</h4>
 <p>Utilise un nom d'expéditeur cohérent et stable (par ex. « Prénom Nom –
 Castignac »). L'adresse doit être réelle et capable de recevoir des réponses :
 une adresse qui n'accepte pas de retour (no-reply mal configuré) est mal vue.
 Évite de changer d'adresse d'expédition à chaque campagne.</p>
 
-<h4 style="color:#0563C1;">11. Surveiller sa réputation</h4>
+<h4 style="color:__ACCENT__;">11. Surveiller sa réputation</h4>
 <p>Mesure au lieu de deviner :</p>
 <ul>
 <li><b>Google Postmaster Tools</b> : réputation domaine/IP et taux de plainte côté Gmail.</li>
@@ -113,7 +115,7 @@ une adresse qui n'accepte pas de retour (no-reply mal configuré) est mal vue.
 <li>Vérifie que ton domaine/IP n'est pas sur une blacklist (mxtoolbox.com).</li>
 </ul>
 
-<h4 style="color:#0563C1;">12. Toujours tester avant d'envoyer</h4>
+<h4 style="color:__ACCENT__;">12. Toujours tester avant d'envoyer</h4>
 <p>Avant chaque vraie campagne, envoie-toi un test (onglet Composer) et vérifie
 le rendu, les liens, la présence en boîte de réception sur plusieurs
 fournisseurs (Gmail, Outlook, Yahoo).</p>
@@ -131,9 +133,10 @@ class _AuthWorker(QThread):
         self.done.emit(domain_auth.check_all(self.domain))
 
 
-_ICONS = {"ok": ("✅", "#1e7e34"), "warn": ("⚠️", "#b8860b"),
-          "missing": ("❌", "#c0392b"), "bad": ("❌", "#c0392b"),
-          "error": ("⛔", "#777777")}
+# Couleurs d'etat choisies pour rester lisibles en theme sombre comme clair.
+_ICONS = {"ok": ("✅", "#2FA968"), "warn": ("⚠️", "#D0A02A"),
+          "missing": ("❌", "#E06666"), "bad": ("❌", "#E06666"),
+          "error": ("⛔", "#9AA0A6")}
 
 
 class DeliveryTab(QWidget):
@@ -180,7 +183,7 @@ class DeliveryTab(QWidget):
         self.content_result = QTextBrowser()
         self.content_result.setMinimumHeight(180)
         self.content_result.setHtml(
-            "<p style='color:#888;'>Composez votre mail, puis cliquez sur "
+            f"<p style='color:{theme.hint()};'>Composez votre mail, puis cliquez sur "
             "« Analyser le mail du Composer ».</p>")
         content_layout.addWidget(self.content_result)
         root.addWidget(content_box)
@@ -188,11 +191,11 @@ class DeliveryTab(QWidget):
         # --- 3. Cadence ---
         cad_box = QGroupBox("Cadence d'envoi (modifiable ici, anti-spam)")
         form = QFormLayout(cad_box)
-        self.delay_min = QDoubleSpinBox(); self.delay_min.setRange(0.5, 600); self.delay_min.setSuffix(" s")
-        self.delay_max = QDoubleSpinBox(); self.delay_max.setRange(0.5, 600); self.delay_max.setSuffix(" s")
-        self.batch_size = QSpinBox(); self.batch_size.setRange(1, 100000)
-        self.batch_pause_min = QDoubleSpinBox(); self.batch_pause_min.setRange(0, 36000); self.batch_pause_min.setSuffix(" s")
-        self.batch_pause_max = QDoubleSpinBox(); self.batch_pause_max.setRange(0, 36000); self.batch_pause_max.setSuffix(" s")
+        self.delay_min = NoScrollDoubleSpinBox(); self.delay_min.setRange(0.5, 600); self.delay_min.setSuffix(" s")
+        self.delay_max = NoScrollDoubleSpinBox(); self.delay_max.setRange(0.5, 600); self.delay_max.setSuffix(" s")
+        self.batch_size = NoScrollSpinBox(); self.batch_size.setRange(1, 100000)
+        self.batch_pause_min = NoScrollDoubleSpinBox(); self.batch_pause_min.setRange(0, 36000); self.batch_pause_min.setSuffix(" s")
+        self.batch_pause_max = NoScrollDoubleSpinBox(); self.batch_pause_max.setRange(0, 36000); self.batch_pause_max.setSuffix(" s")
         form.addRow("Délai minimum entre deux mails :", self.delay_min)
         form.addRow("Délai maximum entre deux mails :", self.delay_max)
         form.addRow("Taille d'un lot (mails) :", self.batch_size)
@@ -203,7 +206,7 @@ class DeliveryTab(QWidget):
         form.addRow(self.save_to_sent)
         form.addRow(self.add_ref)
         info = QLabel("Conseil : 5–8 s entre deux mails. Enregistré automatiquement.")
-        info.setStyleSheet("color:#595959;")
+        info.setStyleSheet(f"color:{theme.hint()};")
         info.setWordWrap(True)
         form.addRow(info)
         root.addWidget(cad_box)
@@ -219,7 +222,9 @@ class DeliveryTab(QWidget):
         rec_layout = QVBoxLayout(rec_box)
         browser = QTextBrowser()
         browser.setOpenExternalLinks(True)
-        browser.setHtml(RECOMMANDATIONS_HTML)
+        browser.setHtml(RECOMMANDATIONS_HTML
+                        .replace("__ACCENT__", theme.accent())
+                        .replace("__MUTED__", theme.muted()))
         browser.setMinimumHeight(240)
         rec_layout.addWidget(browser)
         root.addWidget(rec_box)
@@ -250,15 +255,15 @@ class DeliveryTab(QWidget):
         self.b_auth.setEnabled(True)
         lines = []
         for name, status, detail in results:
-            icon, color = _ICONS.get(status, ("•", "#000000"))
+            icon, color = _ICONS.get(status, ("•", theme.muted()))
             lines.append(
                 f"<p style='margin:4px 0;'>{icon} <b style='color:{color};'>{name}</b> — "
-                f"<span style='color:#333;'>{detail}</span></p>")
+                f"<span style='color:{theme.muted()};'>{detail}</span></p>")
         # conseil si DKIM/DMARC manquants
         statuses = {n: s for n, s, _ in results}
         if statuses.get("DKIM") == "missing" or statuses.get("DMARC") in ("missing", "warn"):
             lines.append(
-                "<p style='color:#595959;margin-top:8px;'><i>DKIM/DMARC s'activent "
+                f"<p style='color:{theme.hint()};margin-top:8px;'><i>DKIM/DMARC s'activent "
                 "côté DNS (OVH) + administration Microsoft 365. C'est le levier n°1 "
                 "contre le spam.</i></p>")
         self.auth_result.setText("".join(lines) or "Aucun résultat.")
@@ -281,8 +286,8 @@ class DeliveryTab(QWidget):
         parts = [f"<h3 style='margin:0 0 8px;'>Score : "
                  f"<span style='color:{scolor};'>{score}/100</span></h3>"]
         for lvl, label, detail in issues:
-            icon, color = _ICONS.get(lvl, ("•", "#000"))
-            d = f" — <span style='color:#555;'>{detail}</span>" if detail else ""
+            icon, color = _ICONS.get(lvl, ("•", theme.muted()))
+            d = f" — <span style='color:{theme.muted()};'>{detail}</span>" if detail else ""
             parts.append(f"<p style='margin:3px 0;'>{icon} "
                          f"<b style='color:{color};'>{label}</b>{d}</p>")
         self.content_result.setHtml("".join(parts))
